@@ -1,6 +1,7 @@
 package com.hashvis.model.collision;
 
 import java.util.List;
+import java.util.ArrayList;
 
 import com.hashvis.model.hashfunc.HashFunction;
 import com.hashvis.model.hashfunc.HashFunctionNumber;
@@ -11,12 +12,16 @@ public class DoubleHashing extends OpenAddressing {
   private Integer hashValue2 = null;
   private HashFunction hashFunc1;
   private HashFunction hashFunc2;
-
-  @Override
-  protected String getcurrent_ResolverType() {
-    return "(base + step) % size of HT";
+  @Override 
+  protected ArrayList<String> initalizePseudocode(){
+    ArrayList<String> pseudocode = new ArrayList<String>();
+    pseudocode.add("step = 0 ; i = base =hash1(k,n) ; jumpdistance = hash2(k,n)");
+    return pseudocode;
   }
-
+  @Override
+  protected String getcurrent_ResolverType(){
+    return " i = (base + step * jumpdistance) % size of HT";
+  }
   @Override
   public List<HashFunction> getHashFunctionFields(DataType dataType) {
     HashFunction hf1;
@@ -51,8 +56,8 @@ public class DoubleHashing extends OpenAddressing {
   }
 
   @Override
-  protected int getBucketSelection(int probeCount) {
-    return hashValue1 + probeCount * hashValue2;
+  protected int handleBucketSelection(int hashValue, int probeCount) {
+    return (hashValue+probeCount*hashValue2)%table.size();
   }
 
   @Override

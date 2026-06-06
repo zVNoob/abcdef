@@ -1,114 +1,91 @@
 package com.hashvis.model.collision;
 
 import java.util.List;
+import java.util.ArrayList;
 
 import com.hashvis.model.hashfunc.HashFunction;
-import com.hashvis.model.table.Item;
-
-abstract class OpenAddressing extends ActionProcessor {
-  private HashAction action;
+import com.hashvis.model.table.Row;
+abstract class OpenAddressing extends CollisionStrategyController {
   private Integer probeCount = 0;
-  private Integer availableRow = null;
-  private int keyCount = 0;
-
-  abstract protected int getBucketSelection(int probeCount);
-
-  @Override
-  public void setHashFunctionFields(List<HashFunction> hashFunctions) {
-    hashFunc = hashFunctions.get(0);
-  }
+  private Integer hashValue = null;
+  private HashFunction hashFunc;
+  private Row currentRow = null;
+  
+  abstract protected int handleBucketSelection(int hashValue, int probeCount);
 
   @Override
-  public boolean useSeparateChaining() {
-    return false;
-  }
-
+  public boolean useSeparateChaining() {return false;}
   @Override
-  protected void uniqueInitalize(HashAction action) {
-    this.action = action;
-    probeCount = 0;
-    availableRow = null;
-  }
-
+  public void setHashFunctionFields(List<HashFunction> hashFunctions) {hashFunc = hashFunctions.get(0);}
   @Override
-  public Result nextStep() {
-    Result initialization = firstStep();
-    if (initialization != null) {
-      return initialization;
-    }
-    return handleTraversal();
+  protected void uniqueInitalize(HashAction action){
+    probeCount   = 0;
+    hashValue    = null;
+    currentRow   = null;
   }
-
+  @Override
   protected Result firstStep() {
-    if (keyCount == table.size() && action == HashAction.INSERT) {
-      return new Result("Error:   Table is full", -1);
-    }
-    if (hashValue == null)
-      return handleHashing();
+    if (hashValue == null){return handleHashing();}
     return null;
   }
-
-  protected Result handleHashing() {
+  private Result handleHashing() {
     hashValue = hashFunc.compute(key, table.size());
-    return new Result("Hash value: " + hashValue, 1);
+    return new Result("Hash value: " + hashValue, 0);
   }
-
-  protected Result handleTraversal() {
-    if (currentRow == null) {
-      if (probeCount == table.size()) {
-        return handleFinalization();
-      }
-      currentRow = table.getRow(getBucketSelection(probeCount) % table.size());
+  @Override
+  protected ArrayList<String> initalizePseudocode(){	
+    ArrayList<String> pseudocode = new ArrayList<String>();
+    pseudocode.add("step = 0 ; i = base =hash(k,n)");
+    return pseudocode;
+  }
+  @Override
+	protected ArrayList<String> caseInsert(){
+		ArrayList<String> pseudocode = new ArrayList<String>();
+		pseudocode.add("if (keycount == size of HT) stop insertion");
+		pseudocode.add("while (HT[i] != EMPTY)");
+		pseudocode.add(" if (HT[i] == DELETED) mark the suitable space");
+    pseudocode.add(" if HT[i] == key stop insertion");
+    pseudocode.add(" step++");
+    pseudocode.add(" if step == size of HT stop insertion");
+		pseudocode.add(getcurrent_ResolverType());
+		pseudocode.add("insert key at suitable space ");
+		return pseudocode;
+	}
+  @Override
+	protected ArrayList<String> caseDelete(){
+		ArrayList<String> pseudocode = new ArrayList<String>();
+		pseudocode.add("while (HT[i] != EMPTY)");
+		pseudocode.add(" if (HT[i] == key) HT[i] = DELETED ; break");
+		pseudocode.add(" step++");
+    pseudocode.add(" if step == size of HT, stop deletion");
+		pseudocode.add(getcurrent_ResolverType());
+		return pseudocode;
+	}
+  @Override
+	protected ArrayList<String> caseSearch(){
+		ArrayList<String> pseudocode = new ArrayList<String>();
+		pseudocode.add("while (HT[i] != EMPTY)");
+		pseudocode.add(" if (HT[i] == key) return 'found at index i'");
+		pseudocode.add(" step++");
+    pseudocode.add(" if step == size of HT, stop searching");
+		pseudocode.add(getcurrent_ResolverType());
+		return pseudocode;
+	}
+  @Override 
+  protected Result searching(){
+    if (currentRow == null){
+      if (probeCount == table.size()){probeCount=0;return null;}
+      currentRow = table.getRow(handleBucketSelection(hashValue,probeCount));
       probeCount++;
-      return new Result("Accessing bucket index " + currentRow.getIndex(), 3);
+      return new Result("Accessing bucket index " + currentRow.getIndex(), 0);
     }
-    Item item = currentRow.nextItem();
-    if (item == null) {
-      return handleFinalization();
+    int caset = searching_bound(currentRow);
+    /// calling searching_bound to check if the action meet the requiment to stop
+    switch(caset){
+      case 1 -> {currentRow=null;return null;}
+      case 2 -> {return processFoundItem(currentRow);}
     }
-    int ind = currentRow.getIndex();
-    currentRow = null;
-    if (item.isGhosted()) {
-      if (availableRow == null) {
-        availableRow = ind;
-        return new Result("Marking bucket index " + ind + " as available", 0);
-      }
-    } else if (item.getName().equals(key)) {
-      return processFoundItem(item);
-    }
-    return new Result("Checking item: " + item.getName() + " (No match)", 0);
-  }
-
-  protected Result processFoundItem(Item item) {
-    switch (action) {
-      case HashAction.INSERT -> {
-        return new Result("Error: Duplicate key " + key, -1);
-      }
-      case HashAction.DELETE -> {
-        item.ghost();
-        keyCount--;
-        return new Result("Deleted key " + key, -1);
-      }
-      default -> {
-        return new Result("Found key " + key, -1);
-      }
-    }
-  }
-
-  protected Result handleFinalization() {
-    if (action == HashAction.INSERT) {
-      if (availableRow != null) {
-        currentRow = table.getRow(availableRow);
-      }
-      if (currentRow == null || probeCount == table.size()) {
-        return new Result("Error: Can't insert that key into table", -1);
-      }
-      if (currentRow.getItems().size() != 0) {
-        currentRow.removeItem(currentRow.getItems().get(0));
-      }
-      currentRow.addItem(key);
-      return new Result("Key not found. Inserted " + key + " into bucket " + currentRow.getIndex(), -1);
-    }
-    return new Result("Error: Key " + key + " not found in table", -1);
+    currentRow=null;
+    return new Result("Checking item: " + " No match", 0);
   }
 }
