@@ -1,5 +1,10 @@
 package com.hashvis.model.collision;
 
+/**
+ * Open addressing strategy that probes buckets with a quadratic step.
+ * The bucket index at probe step {@code k} is:
+ * {@code (hash + k*k) mod tableSize}.
+ */
 public class QuadraticProbing extends OpenAddressing  {
   @Override
   protected String getcurrent_ResolverType(){

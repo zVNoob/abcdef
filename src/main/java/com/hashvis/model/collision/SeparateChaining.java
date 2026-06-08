@@ -6,15 +6,24 @@ import com.hashvis.model.hashfunc.HashFunction;
 import com.hashvis.model.table.Item;
 import com.hashvis.model.table.Row;
 import java.util.ArrayList;
+/**
+ * Collision resolution strategy using separate chaining.
+ * Each bucket holds a chain of items; collisions are resolved by
+ * appending to the chain. The traversal follows the linked chain
+ * within a single bucket.
+ */
 public class SeparateChaining extends CollisionStrategyController {
   private Item currentItem = null;
   private HashFunction hashFunc;
   private Integer hashValue = null;
   private Row currentRow = null;
+  private ArrayList<String> traversal;
   @Override
   public boolean useSeparateChaining() {
     return true;
   }
+  @Override
+  public void setHashFunctionFields(List<HashFunction> hashFunctions) {hashFunc = hashFunctions.get(0);}
   @Override 
   protected ArrayList<String> initalizePseudocode(){
     ArrayList<String> pseudocode = new ArrayList<String>();
@@ -55,68 +64,61 @@ public class SeparateChaining extends CollisionStrategyController {
   @Override
   protected void uniqueInitalize(HashAction action){
     this.action  = action;
+    traversal    = new ArrayList<>();
     currentItem  = null;
     hashValue    = null;
     currentRow   = null;
   }
   @Override
   protected Result firstStep(){
-    if (hashValue == null)
-      return handleHashing();
-    if (currentRow == null)
-      return handleBucketSelection();
+    if (hashValue == null){return handleHashing();}
     return null;
   }
+  @Override 
+  protected Item currentbucketValue(Row row){
+    currentItem=row.nextItem();
+    if(currentItem!=null){traversal.add(currentItem.getName());}
+    return currentItem;
+  }
   // Resolution steps
-  private Result handleBucketSelection() {
-    currentRow = table.getRow(hashValue);
-    return new Result("Accessing bucket index " + hashValue, 0);
+  protected Row handleBucketSelection(int hashValue, int probeCount) {
+    Row row = table.getRow(hashValue);
+    return row;
+  }
+  @Override 
+  protected Result searching(){
+    if (currentRow == null){
+      currentRow = handleBucketSelection(hashValue,0);
+      return new Result("Acessing row " + currentRow.getIndex(), 0);
+    }
+    int caset = searching_bound(currentRow);
+    /// calling searching_bound to check if the action meet the requiment to stop
+    switch(caset){
+      case 1 -> {return null;}
+      case 2 -> {return processFoundItem(currentRow);}
+    }
+    return new Result("Checking item: " + currentItem.getName() + " No match", 0);
+  }
+  @Override 
+  protected String   collisonTraversal(){
+    if(traversal.size()<=0){
+      return "";
+    }
+    return  String.join("-> ", traversal);
   }
   @Override
-  protected Result searching() {
-    // If we don't have an item yet, or we just finished one, get the next
-    if (currentItem == null )
-      currentItem = currentRow.nextItem();
-    if (currentItem == null) {
-      return handleFinalization();
+  protected Result processFoundItem(Row row) {
+    switch (action){
+      case HashAction.INSERT -> {return new Result("Error: Duplicate key " + key +"<br/>Traversal : "+ collisonTraversal(), -1);} 
+      case HashAction.DELETE -> {
+        row.removeItem(currentItem);
+        return new Result("Deleted key " + key +"<br/>Traversal : "+ collisonTraversal(), -1);
+      } 
+      default ->{return new Result("Found key " + key +"<br/>Traversal : "+ collisonTraversal(), -1);}
     }
-
-    // Check if this is the item we are looking for
-    if (currentItem.getName().equals(key))
-      return processFoundItem();
-
-    // Otherwise, prepare to move to the next item in the next call
-    Item itemToHighlight = currentItem;
-    currentItem = null; // Reset so next call to handleTraversal calls nextItem()
-    return new Result("Checking item: " + itemToHighlight.getName() + " (No match)", 0);
-  }
-  @Override
-  protected Result processInsertion(){
-    return new Result("Key not found. Inserted " + key + " into bucket " + hashValue, -1);
-  }
-  private Result processFoundItem() {
-    if (action == HashAction.INSERT) {
-      return new Result("Error: Duplicate key " + key, -1);
-    } else if (action == HashAction.DELETE) {
-      currentRow.removeItem(currentItem);
-      return new Result("Deleted key " + key, -1);
-    } else {
-      return new Result("Found key " + key, -1);
-    }
-  }
-  private Result handleFinalization() {
-    if (action == HashAction.INSERT) {
-      currentRow.addItem(key);
-      return null;
-    }
-    return new Result("Error: Key " + key + " not found in table", -1);
   }
   protected Result handleHashing() {
   	hashValue = hashFunc.compute(key, table.size());
   	return new Result("Hash value: " + hashValue, 0);
-  }
-  @Override
-  public void setHashFunctionFields(List<HashFunction> hashFunctions) {
-    hashFunc = hashFunctions.get(0);
   }
 }

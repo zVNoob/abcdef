@@ -5,12 +5,29 @@ import java.util.ArrayList;
 
 import com.hashvis.model.hashfunc.HashFunction;
 import com.hashvis.model.table.Row;
+import com.hashvis.model.table.Item;
+
+/**
+ * Base class for open addressing collision resolution strategies.
+ * All items are stored directly in the table array; collisions are
+ * resolved by probing subsequent buckets according to a strategy-specific
+ * formula. Subclasses implement {@link #handleBucketSelection} to define
+ * the probe sequence.
+ */
 abstract class OpenAddressing extends CollisionStrategyController {
   private Integer probeCount = 0;
   private Integer hashValue = null;
   private HashFunction hashFunc;
   private Row currentRow = null;
+  private ArrayList<Integer> traversal;
   
+  /**
+   * Computes the bucket index for the given probe number.
+   *
+   * @param hashValue  the initial hash value
+   * @param probeCount the current probe number (zero-based)
+   * @return the bucket index to visit next
+   */
   abstract protected int handleBucketSelection(int hashValue, int probeCount);
 
   @Override
@@ -18,7 +35,8 @@ abstract class OpenAddressing extends CollisionStrategyController {
   @Override
   public void setHashFunctionFields(List<HashFunction> hashFunctions) {hashFunc = hashFunctions.get(0);}
   @Override
-  protected void uniqueInitalize(HashAction action){
+  protected void uniqueInitalize(HashAction action) {
+    traversal    = new ArrayList<>();
     probeCount   = 0;
     hashValue    = null;
     currentRow   = null;
@@ -28,6 +46,11 @@ abstract class OpenAddressing extends CollisionStrategyController {
     if (hashValue == null){return handleHashing();}
     return null;
   }
+  /**
+   * Computes the hash value for the key and returns the result.
+   *
+   * @return the result with the hash value and pseudocode line
+   */
   private Result handleHashing() {
     hashValue = hashFunc.compute(key, table.size());
     return new Result("Hash value: " + hashValue, 0);
@@ -72,11 +95,21 @@ abstract class OpenAddressing extends CollisionStrategyController {
 		return pseudocode;
 	}
   @Override 
+  protected Item currentbucketValue(Row row){
+    try {
+      Item item= row.getItems().get(0);
+      return item;
+    } catch (Exception e) {
+      return null;
+    }
+  }
+  @Override 
   protected Result searching(){
     if (currentRow == null){
       if (probeCount == table.size()){probeCount=0;return null;}
       currentRow = table.getRow(handleBucketSelection(hashValue,probeCount));
       probeCount++;
+      traversal.add(currentRow.getIndex());
       return new Result("Accessing bucket index " + currentRow.getIndex(), 0);
     }
     int caset = searching_bound(currentRow);
@@ -87,5 +120,12 @@ abstract class OpenAddressing extends CollisionStrategyController {
     }
     currentRow=null;
     return new Result("Checking item: " + " No match", 0);
+  }
+  @Override 
+  protected String   collisonTraversal(){
+    if(traversal.size()<=0){
+      return "[]";
+    }
+    return traversal.toString();
   }
 }
